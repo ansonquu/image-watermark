@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>印记 · 批量图片水印</title>
+  <!-- 网站图标：把 favicon.png 放在本 HTML 同一文件夹，替换下面的 href 即可。也可以填写图片网址或 data URL。 -->
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <!--
+    文件导航
+    1. 网站标题与 favicon：文件顶部
+    2. 页面外观：下方 style 中修改颜色、尺寸和布局
+    3. 页面内容：header / main 中修改文字与按钮
+    4. 交互逻辑：底部 script 中管理照片、水印、预览和导出
+    本文件不依赖外部脚本，保存后可直接用浏览器打开。
+  -->
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: #101211;
+      color: #e7e9e5;
+      font: 14px system-ui;
+    }
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+    button,
+    .upload {
+      cursor: pointer;
+    }
+    header {
+      padding: 22px 32px;
+      border-bottom: 1px solid #30342f;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    h1 {
+      font-size: 23px;
+      margin: 0;
+    }
+    small,
+    .muted {
+      color: #98a294;
+    }
+    header small {
+      margin-left: 18px;
+    }
+    .badge {
+      color: #b8df8a;
+      font-size: 12px;
+    }
+    main {
+      display: grid;
+      grid-template-columns: 260px 1fr 300px;
+      min-height: calc(100vh - 80px);
+    }
+    aside {
+      padding: 22px;
+      border-right: 1px solid #30342f;
+    }
+    .right {
+      border-left: 1px solid #30342f;
+      border-right: 0;
+    }
+    h2 {
+      font-size: 13px;
+      font-weight: 500;
+      color: #aeb7a8;
+      letter-spacing: 1px;
+      margin: 0 0 18px;
+    }
+    .upload {
+      display: block;
+      border: 1px dashed #65705b;
+      border-radius: 9px;
+      text-align: center;
+      padding: 23px 10px;
+      color: #d3e7b6;
+      background: #1b2118;
+    }
+    .upload input {
+      display: none;
+    }
+    button {
+      border: 1px solid #42493d;
+      border-radius: 6px;
+      background: #252b22;
+      color: #e3e8dd;
+      padding: 9px 13px;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .primary {
+      background: #c0e797;
+      color: #192111;
+      font-weight: 650;
+      border: 0;
+      width: 100%;
+      padding: 13px;
+    }
+    .workspace {
+      padding: 28px;
+      min-width: 0;
+    }
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .stage {
+      height: 55vh;
+      min-height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: repeating-conic-gradient(#20241f 0% 25%, #242823 0% 50%)
+        50%/22px 22px;
+      border: 1px solid #343b30;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .stage canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .empty {
+      text-align: center;
+      color: #87917e;
+      line-height: 2;
+    }
+    .empty b {
+      display: block;
+      font-size: 24px;
+      color: #cad3c2;
+      font-weight: 450;
+    }
+    .note {
+      font-size: 12px;
+      color: #929e88;
+      line-height: 1.8;
+      margin-top: 18px;
+    }
+    .files {
+      margin-top: 18px;
+      max-height: 60vh;
+      overflow: auto;
+    }
+    .file {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 4px;
+      border-bottom: 1px solid #2d3328;
+      cursor: pointer;
+    }
+    .file.active {
+      background: #2a3522;
+    }
+    .file span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .file button {
+      padding: 1px 6px;
+    }
+    .control {
+      margin: 22px 0;
+    }
+    .control label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      color: #c7cebf;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: #c0e797;
+    }
+    select {
+      width: 100%;
+      background: #20261c;
+      color: #e7e9e5;
+      border: 1px solid #42493d;
+      border-radius: 5px;
+      padding: 9px;
+    }
+    .anchors {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .anchors button {
+      height: 33px;
+      padding: 4px;
+    }
+    .anchors .on {
+      background: #c0e797;
+      color: #1a2412;
+    }
+    #markPreview {
+      max-width: 100%;
+      max-height: 70px;
+      display: block;
+      margin: 10px auto;
+    }
+    progress {
+      width: 100%;
+      accent-color: #c0e797;
+    }
+    #status {
+      min-height: 35px;
+      color: #bcd59e;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 12px;
+    }
+    footer {
+      font-size: 12px;
+      color: #7c8972;
+      margin-top: 22px;
+    }
+    @media (max-width: 1000px) {
+      main {
+        grid-template-columns: 210px 1fr;
+      }
+      .right {
+        grid-column: 1/-1;
+        display: block;
+      }
+      .stage {
+        height: 45vh;
+      }
+    }
+    @media (max-width: 600px) {
+      main {
+        display: block;
+      }
+      header {
+        padding: 18px;
+      }
+      header small {
+        display: none;
+      }
+      .files {
+        max-height: 180px;
+      }
+      .workspace {
+        padding: 18px;
+      }
+    }
+  </style>
+  <!-- 顶部：网站名称与本地处理提示 -->
+  <header>
+    <div>
+      <h1>印记 <small>WATERMARK STUDIO</small></h1>
+    </div>
+    <span class="badge">● 本地处理 · 原图保留</span>
+  </header>
+  <main>
+    <!-- 左侧：照片队列、多选与删除 -->
+    <aside>
+      <h2>01 / 照片队列 <span id="count">0</span></h2>
+      <label class="upload"
+        >＋ 添加照片<br /><small>多选或拖入 JPG / PNG / WebP</small
+        ><input
+          id="photos"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+      /></label>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px">
+        <button id="selectAll">全选</button
+        ><button id="selectNone">取消选择</button
+        ><button id="deleteSelected" disabled>删除所选</button>
+      </div>
+      <div id="selectedCount" class="note">已选 0 张</div>
+      <div class="files" id="files"></div>
+      <button id="clear" style="margin-top: 16px">清空队列</button>
+      <p class="note">所有照片共用当前水印设置。点击队列中的照片可切换预览。</p>
+    </aside>
+    <!-- 中间：当前照片预览与原图对比 -->
+    <section class="workspace">
+      <div class="top">
+        <h2 style="margin: 0">照片预览</h2>
+        <button id="compare">按住查看原图</button>
+      </div>
+      <div class="stage" id="drop">
+        <div class="empty" id="empty">
+          <b>让作品留下你的印记</b>拖入照片，上传你的 Logo<br />一次设置，批量导出
+        </div>
+        <canvas id="preview" hidden></canvas>
+      </div>
+      <div class="top" style="margin-top: 18px">
+        <span id="info" class="muted">尚未添加照片</span
+        ><button id="single" disabled>下载当前照片</button>
+      </div>
+      <p class="note">
+        PNG
+        以原始像素尺寸无损编码导出，不缩小照片。添加水印会改变覆盖区域；浏览器可能转换色彩空间，且不保留
+        EXIF / ICC 元数据。暂不支持 RAW、HEIC、16 位专业影像工作流。
+      </p>
+    </section>
+    <!-- 右侧：水印图片、参数与导出按钮 -->
+    <aside class="right">
+      <h2>02 / 图片水印</h2>
+      <label class="upload"
+        >＋ 上传水印图片<input
+          id="logo"
+          type="file"
+          accept="image/png,image/webp,image/jpeg" /></label
+      ><img id="markPreview" hidden alt="水印预览" />
+      <p class="note">推荐透明背景 PNG，保留 Logo 原有透明度。</p>
+      <div class="control">
+        <label>不透明度 <span id="opacityV"></span></label
+        ><input id="opacity" type="range" min="1" max="100" value="80" />
+      </div>
+      <div class="control">
+        <label>相对大小 <span id="sizeV"></span></label
+        ><input id="size" type="range" min="2" max="70" value="20" />
+      </div>
+      <div class="control">
+        <label>边距 <span id="marginV"></span></label
+        ><input id="margin" type="range" min="0" max="20" value="3" />
+      </div>
+      <div class="control">
+        <label>锚点位置</label>
+        <div class="anchors" id="anchors"></div>
+      </div>
+      <div class="control">
+        <label>导出格式</label
+        ><select id="format">
+          <option value="png">PNG · 无损编码</option>
+          <option value="jpeg">JPEG · 高质量（有损）</option>
+        </select>
+      </div>
+      <button
+        id="exportSelected"
+        class="primary"
+        disabled
+        style="margin-bottom: 10px"
+      >
+        导出所选 ZIP</button
+      ><button id="batch" class="primary" disabled>导出全部 ZIP</button
+      ><progress id="progress" value="0" max="1" hidden></progress>
+      <div id="status" role="status" aria-live="polite"></div>
+      <footer>
+        无需账户，无需上传服务器。<br />设置会自动保存在此浏览器。
+      </footer>
+    </aside>
+  </main>
+  <script>
+    // ===== 1. 页面元素、照片队列与当前状态 =====
+    const $ = (id) => document.getElementById(id);
+    let selected = new Set();
+    let files = [],
+      current = 0,
+      logo = null,
+      anchor = 8,
+      busy = false,
+      revision = 0;
+    const controls = ["opacity", "size", "margin", "format"];
+    try {
+      const p = JSON.parse(localStorage.getItem("watermarkSettings") || "{}");
+      controls.forEach((k) => {
+        if (p[k] != null) $(k).value = p[k];
+      });
+      if (Number.isInteger(p.anchor) && p.anchor >= 0 && p.anchor < 9)
+        anchor = p.anchor;
+    } catch {}
+    // 读取当前水印参数；相对大小与边距使用百分比。
+    function settings() {
+      return Object.fromEntries([
+        ...controls.map((k) => [k, $(k).value]),
+        ["anchor", anchor],
+      ]);
+    }
+    // 同步参数显示、按钮状态，并刷新预览。
+    function update() {
+      for (const k of controls.slice(0, 3))
+        $(k + "V").textContent = $(k).value + "%";
+      try {
+        localStorage.setItem("watermarkSettings", JSON.stringify(settings()));
+      } catch {}
+      document
+        .querySelectorAll("#anchors button")
+        .forEach((b, i) => b.classList.toggle("on", i === anchor));
+      $("batch").disabled = $("single").disabled =
+        busy || !files.length || !logo;
+      $("exportSelected").disabled = busy || !selected.size || !logo;
+      $("deleteSelected").disabled = busy || !selected.size;
+      $("selectedCount").textContent =
+        "已选 " + selected.size + " / " + files.length + " 张";
+      render();
+    }
+    ["↖", "↑", "↗", "←", "·", "→", "↙", "↓", "↘"].forEach((v, i) => {
+      const b = document.createElement("button");
+      b.textContent = v;
+      b.setAttribute(
+        "aria-label",
+        [
+          "左上",
+          "上中",
+          "右上",
+          "左中",
+          "居中",
+          "右中",
+          "左下",
+          "下中",
+          "右下",
+        ][i],
+      );
+      b.onclick = () => {
+        anchor = i;
+        update();
+      };
+      $("anchors").append(b);
+    });
+    controls.forEach((k) => ($(k).oninput = update));
+    // ===== 2. 图片读取、绘制与预览 =====
+    // 临时地址仅在本机使用，图片读取完成后释放。
+    function load(file) {
+      return new Promise((resolve, reject) => {
+        const u = URL.createObjectURL(file),
+          im = new Image();
+        im.onload = () => {
+          URL.revokeObjectURL(u);
+          resolve(im);
+        };
+        im.onerror = () => {
+          URL.revokeObjectURL(u);
+          reject(Error("无法读取图片：" + file.name));
+        };
+        im.src = u;
+      });
+    }
+    // 按原始像素尺寸绘制照片，再根据九宫格锚点叠加图片水印。
+    function draw(c, im, s, mark, original = false) {
+      c.width = im.naturalWidth;
+      c.height = im.naturalHeight;
+      const x = c.getContext("2d");
+      if (!x) throw Error("浏览器无法建立画布");
+      if (s.format === "jpeg") {
+        x.fillStyle = "#fff";
+        x.fillRect(0, 0, c.width, c.height);
+      }
+      x.drawImage(im, 0, 0);
+      if (mark && !original) {
+        let w = c.width * (+s.size / 100),
+          h = (w * mark.naturalHeight) / mark.naturalWidth;
+        const m = Math.min(c.width, c.height) * (+s.margin / 100),
+          limit = Math.min(1, (c.width - 2 * m) / w, (c.height - 2 * m) / h);
+        w *= limit;
+        h *= limit;
+        const col = s.anchor % 3,
+          row = Math.floor(s.anchor / 3);
+        x.globalAlpha = +s.opacity / 100;
+        x.drawImage(
+          mark,
+          col === 0 ? m : col === 1 ? (c.width - w) / 2 : c.width - w - m,
+          row === 0 ? m : row === 1 ? (c.height - h) / 2 : c.height - h - m,
+          w,
+          h,
+        );
+        x.globalAlpha = 1;
+      }
+    }
+    // 预览会缩小以方便显示；实际导出仍使用照片原始尺寸。
+    async function render(original = false) {
+      const r = ++revision;
+      const f = files[current];
+      $("empty").hidden = !!f;
+      $("preview").hidden = !f;
+      if (!f) return;
+      try {
+        const im = await load(f);
+        if (r !== revision) return;
+        const c = document.createElement("canvas");
+        draw(c, im, settings(), logo, original);
+        const p = $("preview");
+        const scale = Math.min(1, 1600 / c.width, 1200 / c.height);
+        p.width = Math.round(c.width * scale);
+        p.height = Math.round(c.height * scale);
+        p.getContext("2d").drawImage(c, 0, 0, p.width, p.height);
+        c.width = c.height = 1;
+        $("info").textContent =
+          f.name + " · " + im.naturalWidth + " × " + im.naturalHeight;
+      } catch (e) {
+        $("status").textContent = e.message;
+      }
+    }
+    // ===== 3. 照片队列、多选与文件导入 =====
+    function list() {
+      $("count").textContent = files.length;
+      $("files").replaceChildren();
+      files.forEach((f, i) => {
+        const d = document.createElement("div");
+        d.className = "file" + (i === current ? " active" : "");
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.checked = selected.has(f);
+        check.setAttribute("aria-label", "选择 " + f.name);
+        check.onclick = (e) => e.stopPropagation();
+        check.onchange = () => {
+          if (check.checked) selected.add(f);
+          else selected.delete(f);
+          update();
+        };
+        d.append(check);
+        const t = document.createElement("span");
+        t.textContent = f.name;
+        d.append(t);
+        const b = document.createElement("button");
+        b.textContent = "×";
+        b.setAttribute("aria-label", "移除 " + f.name);
+        b.onclick = (e) => {
+          e.stopPropagation();
+          selected.delete(f);
+          files.splice(i, 1);
+          current = Math.min(current, Math.max(0, files.length - 1));
+          list();
+        };
+        d.append(b);
+        d.onclick = () => {
+          current = i;
+          list();
+        };
+        $("files").append(d);
+      });
+      update();
+    }
+    // 同时检查文件类型与扩展名，兼容拖入时类型为空的文件。
+    function add(fs) {
+      const a = [...fs].filter(
+        (f) =>
+          /image\/(jpeg|png|webp)/i.test(f.type) ||
+          /\.(jpe?g|png|webp)$/i.test(f.name),
+      );
+      files.push(...a);
+      $("status").textContent =
+        a.length < fs.length
+          ? "已跳过不支持的文件，仅支持 JPG、PNG、WebP。"
+          : "已添加 " + a.length + " 张照片。";
+      list();
+    }
+    $("photos").onchange = (e) => {
+      add(e.target.files);
+      e.target.value = "";
+    };
+    $("clear").onclick = () => {
+      files = [];
+      selected.clear();
+      current = 0;
+      list();
+    };
+    $("selectAll").onclick = () => {
+      selected = new Set(files);
+      list();
+    };
+    $("selectNone").onclick = () => {
+      selected.clear();
+      list();
+    };
+    $("deleteSelected").onclick = () => {
+      const active = files[current];
+      files = files.filter((f) => !selected.has(f));
+      selected.clear();
+      current = Math.max(0, files.indexOf(active));
+      list();
+    }; // Accept files anywhere; the logo panel has a dedicated drop target.
+    const photoZone = $("photos").closest("label"),
+      logoZone = $("logo").closest("label");
+    for (const z of [photoZone, logoZone, $("drop")]) {
+      z.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        z.style.outline = "2px solid #c0e797";
+      });
+      z.addEventListener("dragleave", () => (z.style.outline = ""));
+      z.addEventListener("drop", () => (z.style.outline = ""));
+    }
+    document.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    });
+    document.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const fs = e.dataTransfer && e.dataTransfer.files;
+      if (!fs || !fs.length) {
+        $("status").textContent = "请从电脑文件夹拖入照片，或点击添加照片。";
+        return;
+      }
+      if (logoZone.contains(e.target)) {
+        const dt = new DataTransfer();
+        dt.items.add(fs[0]);
+        $("logo").files = dt.files;
+        $("logo").dispatchEvent(new Event("change"));
+      } else add(fs);
+    });
+    $("logo").onchange = async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try {
+        logo = await load(f);
+        $("markPreview").src = logo.src;
+        const c = document.createElement("canvas");
+        c.width = 160;
+        c.height = Math.max(1, Math.round((160 * logo.height) / logo.width));
+        c.getContext("2d").drawImage(logo, 0, 0, c.width, c.height);
+        $("markPreview").src = c.toDataURL();
+        $("markPreview").hidden = false;
+        update();
+      } catch (err) {
+        $("status").textContent = err.message;
+      }
+    };
+    $("compare").onpointerdown = (e) => {
+      e.target.setPointerCapture(e.pointerId);
+      render(true);
+    };
+    $("compare").onpointerup = $("compare").onpointercancel = () => render();
+    $("compare").onkeydown = (e) => {
+      if (e.key === " ") render(true);
+    };
+    $("compare").onkeyup = () => render();
+    // ===== 4. 图片编码与文件下载 =====
+    // PNG 使用无损编码；JPEG 使用 0.98 的质量参数，仍属于有损编码。
+    function blob(c, type) {
+      return new Promise((res, rej) =>
+        c.toBlob(
+          (b) =>
+            b ? res(b) : rej(Error("导出失败，图片可能超出浏览器画布限制")),
+          "image/" + type,
+          0.98,
+        ),
+      );
+    }
+    function download(b, name) {
+      const u = URL.createObjectURL(b),
+        a = document.createElement("a");
+      a.href = u;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(u), 60000);
+    }
+    // ===== 5. ZIP 打包 =====
+    // 使用 ZIP 的存储模式与 CRC32 校验，无需外部压缩库。
+    const table = Array.from({ length: 256 }, (_, n) => {
+      for (let j = 0; j < 8; j++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1;
+      return n >>> 0;
+    });
+    function crc(bytes) {
+      let c = 0xffffffff;
+      for (const b of bytes) c = table[(c ^ b) & 255] ^ (c >>> 8);
+      return (c ^ 0xffffffff) >>> 0;
+    }
+    function header(size) {
+      const b = new Uint8Array(size);
+      return [b, new DataView(b.buffer)];
+    }
+    function zip(entries) {
+      let offset = 0;
+      const body = [],
+        central = [];
+      for (const e of entries) {
+        const n = new TextEncoder().encode(e.name),
+          data = e.data,
+          sum = crc(data);
+        let [h, v] = header(30);
+        v.setUint32(0, 0x04034b50, true);
+        v.setUint16(4, 20, true);
+        v.setUint16(6, 0x800, true);
+        v.setUint32(14, sum, true);
+        v.setUint32(18, data.length, true);
+        v.setUint32(22, data.length, true);
+        v.setUint16(26, n.length, true);
+        body.push(h, n, data);
+        let [ch, cv] = header(46);
+        cv.setUint32(0, 0x02014b50, true);
+        cv.setUint16(4, 20, true);
+        cv.setUint16(6, 20, true);
+        cv.setUint16(8, 0x800, true);
+        cv.setUint32(16, sum, true);
+        cv.setUint32(20, data.length, true);
+        cv.setUint32(24, data.length, true);
+        cv.setUint16(28, n.length, true);
+        cv.setUint32(42, offset, true);
+        central.push(ch, n);
+        offset += 30 + n.length + data.length;
+      }
+      const length = central.reduce((a, b) => a + b.length, 0);
+      if (offset + length > 0xffffffff || entries.length > 65535)
+        throw Error("ZIP 超出大小限制，请分批导出");
+      const [end, ev] = header(22);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(8, entries.length, true);
+      ev.setUint16(10, entries.length, true);
+      ev.setUint32(12, length, true);
+      ev.setUint32(16, offset, true);
+      return new Blob([...body, ...central, end], { type: "application/zip" });
+    }
+    // ===== 6. 批量导出 =====
+    // all=false：当前照片；all=true：全部照片；onlySelected=true：仅选中照片。
+    // 开始时保存队列与参数快照，逐张处理，最后打包下载。
+    async function exportImages(all, onlySelected = false) {
+      if (busy || !logo || !files.length) return;
+      busy = true;
+      update();
+      const s = settings(),
+        mark = logo,
+        queue = all
+          ? onlySelected
+            ? files.filter((f) => selected.has(f))
+            : [...files]
+          : [files[current]],
+        entries = [],
+        errors = [];
+      $("progress").hidden = false;
+      $("progress").max = queue.length;
+      try {
+        for (let i = 0; i < queue.length; i++) {
+          const f = queue[i];
+          $("status").textContent =
+            "正在处理 " + (i + 1) + " / " + queue.length + " · " + f.name;
+          try {
+            const im = await load(f),
+              c = document.createElement("canvas");
+            draw(c, im, s, mark);
+            const b = await blob(c, s.format);
+            c.width = c.height = 1;
+            const name =
+              (all ? String(i + 1).padStart(3, "0") + "_" : "") +
+              f.name.replace(/\.[^.]+$/, "") +
+              "_watermarked." +
+              (s.format === "jpeg" ? "jpg" : "png");
+            if (all)
+              entries.push({
+                name,
+                data: new Uint8Array(await b.arrayBuffer()),
+              });
+            else download(b, name);
+          } catch (e) {
+            errors.push(f.name + ": " + e.message);
+          }
+          $("progress").value = i + 1;
+          await new Promise((r) => setTimeout(r, 0));
+        }
+        if (all && entries.length) download(zip(entries), "印记_批量水印.zip");
+        $("status").textContent =
+          "完成：" +
+          (queue.length - errors.length) +
+          " 张。" +
+          (errors.length
+            ? "失败 " + errors.length + " 张：" + errors.join("；")
+            : " 原图已保留。");
+      } catch (e) {
+        $("status").textContent = e.message;
+      } finally {
+        busy = false;
+        update();
+      }
+    }
+    $("exportSelected").onclick = () => exportImages(true, true);
+    $("single").onclick = () => exportImages(false);
+    $("batch").onclick = () => exportImages(true);
+    update();
+  </script>
+</html>
